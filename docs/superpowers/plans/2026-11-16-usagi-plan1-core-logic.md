@@ -33,7 +33,7 @@
   - 브레드보드 ×2, 듀폰선 3종(테스트용)
 - [ ] 따로 준비: microSD 8~32GB ×2, 5V 2A 어댑터 ×2, USB-A to C 데이터 케이블 ×2
 - [ ] 장비: 인두와 멀티미터(빌림, 부품 도착 무렵), 로직 분석기(구매함). 캘리퍼스는 빼기로 함
-- [ ] GitHub 공개 저장소 `usagi-clock` 생성(빈 저장소)
+- [x] GitHub 공개 저장소 생성: https://github.com/UncleSamsun/usagi-clock (2026-11-16)
 
 ## Global Constraints
 
@@ -103,16 +103,16 @@ usagi-clock/
 - Produces: `tools/run_host_tests.sh` — 인자 없이 실행. `build-host/`에 Debug + `--coverage`로 빌드하고 `ctest --output-on-failure`, `gcovr --fail-under-line 90 -r . --filter components/`, `cppcheck --enable=warning,style,performance --error-exitcode=1 components/alarm_core components/button`을 순서대로 실행한다. 하나라도 실패하면 0이 아닌 값으로 끝난다.
 - Produces: `test/host/CMakeLists.txt`는 테스트 파일마다 실행 파일 하나를 만들고 `add_test`로 등록한다. 대상 소스는 `components/alarm_core/*.c`, `components/button/*.c`를 직접 포함한다.
 
-- [ ] **Step 1: ESP-IDF 설치(Windows)**
+- [x] **Step 1: ESP-IDF 설치(Windows)**
   ESP-IDF Windows 설치 프로그램 또는 VS Code ESP-IDF 확장으로 최신 안정판을 설치한다. 설치한 버전 문자열을 README의 "개발 환경" 절에 적는다.
   Run: `idf.py --version`
   Expected: `ESP-IDF v5.5` 이상 출력
 
-- [ ] **Step 2: PC 테스트 환경 설치(WSL2 Ubuntu)**
+- [x] **Step 2: PC 테스트 환경 설치(WSL2 Ubuntu)**
   Run: `sudo apt install -y build-essential cmake ninja-build gcovr cppcheck`
   Expected: `gcc --version`, `cmake --version`, `gcovr --version`, `cppcheck --version`이 모두 출력됨
 
-- [ ] **Step 3: 저장소 초기화와 ESP-IDF 뼈대 작성**
+- [x] **Step 3: 저장소 초기화와 ESP-IDF 뼈대 작성**
   `partitions.csv`(16MB 기준):
 
   ```
@@ -127,21 +127,21 @@ usagi-clock/
   `sdkconfig.defaults`: `CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y`, `CONFIG_PARTITION_TABLE_CUSTOM=y`, `CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"`, `CONFIG_SPIRAM=y`, `CONFIG_SPIRAM_MODE_OCT=y`, `CONFIG_IDF_TARGET="esp32s3"`.
   `main.c`는 `app_main`에서 `ESP_LOGI("usagi", "boot")`만 한다.
 
-- [ ] **Step 4: 펌웨어 빌드 확인**
+- [x] **Step 4: 펌웨어 빌드 확인**
   Run: `idf.py set-target esp32s3 && idf.py build`
   Expected: `Project build complete` 출력
 
-- [ ] **Step 5: PC 테스트 뼈대와 스모크 테스트**
+- [x] **Step 5: PC 테스트 뼈대와 스모크 테스트**
   `test_alarm_time.c`에 `test_smoke`(`TEST_ASSERT_EQUAL_INT(9 * 3600, ALARM_TZ_OFFSET_S)`) 하나만 둔다. 이 상수는 `alarm_core.h`에 미리 정의한다.
   Run(WSL): `./tools/run_host_tests.sh`
   Expected: `100% tests passed`. 커버리지 단계는 아직 측정 대상 코드가 없으므로 이 Task에서만 `--fail-under-line`을 건너뛰는 `SKIP_COVERAGE_GATE=1` 환경 변수를 지원한다.
 
-- [ ] **Step 6: CI 작성**
+- [x] **Step 6: CI 작성**
   `.github/workflows/ci.yml`에 job 두 개를 둔다.
   - `host-tests`: ubuntu-latest, Step 2 패키지 설치 → `./tools/run_host_tests.sh` → gcovr HTML을 artifact로 업로드
   - `firmware`: `espressif/idf:<Step 1에서 고정한 버전 태그>` 컨테이너 → `idf.py set-target esp32s3 build`
 
-- [ ] **Step 7: Commit + push, CI 통과 확인**
+- [x] **Step 7: Commit + push, CI 통과 확인**
 
   ```bash
   git add -A
