@@ -7,7 +7,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD="$ROOT/build-host"
+REPORT="$ROOT/build-host/coverage"
+if [[ -n "${USAGI_BUILD_DIR:-}" ]]; then
+    BUILD="$USAGI_BUILD_DIR"
+elif [[ "$ROOT" == /mnt/* ]]; then
+    # WSL에서 Windows 폴더(/mnt/c)는 권한 변경이 막혀 CMake가 실패할 수 있고 느리다.
+    # 빌드는 리눅스 디스크에서 하고, 커버리지 리포트만 저장소 안으로 복사한다.
+    BUILD="$HOME/.cache/usagi-clock/build-host"
+else
+    BUILD="$ROOT/build-host"
+fi
 cd "$ROOT"
 
 echo "== 1/4 빌드"
@@ -29,6 +38,11 @@ else
     echo "(SKIP_COVERAGE_GATE=1: 90% 기준 건너뜀)"
 fi
 gcovr "${GCOVR_ARGS[@]}"
+if [[ "$BUILD/coverage" != "$REPORT" ]]; then
+    mkdir -p "$REPORT"
+    cp -r "$BUILD/coverage/." "$REPORT/"
+fi
+echo "커버리지 리포트: build-host/coverage/index.html"
 
 echo "== 4/4 정적 분석"
 mapfile -t C_FILES < <(find components/alarm_core components/button -name '*.c' | sort)
