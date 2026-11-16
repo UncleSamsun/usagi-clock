@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  host-tests:
+    name: PC 단위 테스트 · 커버리지 · 정적 분석
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 도구 설치
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build gcovr cppcheck
+
+      - name: 테스트 실행
+        # TODO(Task 2): alarm_time.c가 생기면 SKIP_COVERAGE_GATE를 지운다
+        env:
+          SKIP_COVERAGE_GATE: "1"
+        run: ./tools/run_host_tests.sh
+
+      - name: 커버리지 리포트 업로드
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html
+          path: build-host/coverage/
+          if-no-files-found: ignore
+
+  firmware:
+    name: ESP32-S3 펌웨어 빌드
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: idf.py build
+        uses: espressif/esp-idf-ci-action@v1.2.0
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3

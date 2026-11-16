@@ -1,0 +1,10 @@
+# 16MB 플래시 기준. 오프셋을 비우면 앞 파티션 바로 뒤(정렬 맞춤)에 놓인다.
+# ota_1은 0x420000, storage는 0x820000에서 시작하고, 0xA20000 이후는 여유 공간이다.
+# storage는 LittleFS로 쓴다(서브타입 이름만 spiffs).
+# Name,   Type, SubType, Offset,  Size
+nvs,      data, nvs,     0x9000,  0x6000
+otadata,  data, ota,     0xf000,  0x2000
+phy_init, data, phy,     0x11000, 0x1000
+ota_0,    app,  ota_0,   0x20000, 0x400000
+ota_1,    app,  ota_1,   ,        0x400000
+storage,  data, spiffs,  ,        0x200000

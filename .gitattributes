@@ -1,0 +1,7 @@
+# WSL·Linux에서 셸 스크립트가 CRLF 때문에 깨지지 않게 줄바꿈을 LF로 고정한다
+* text=auto eol=lf
+*.bin binary
+*.png binary
+*.jpg binary
+*.mp3 binary
+*.wav binary
