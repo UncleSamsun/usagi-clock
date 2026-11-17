@@ -202,7 +202,7 @@ bool    alarm_validate(const alarm_t *a);
 alarm_settings_t alarm_settings_default(void);
 ```
 
-- [ ] **Step 1: 실패하는 테스트 작성** (`test_alarm_time.c`)
+- [x] **Step 1: 실패하는 테스트 작성** (`test_alarm_time.c`)
   상수: `MON_1116_0000 = 1794787200`(2026-11-16 월 00:00 로컬 epoch), `MON_0600 = 1794808800`, `MON_0700 = 1794812400`, `TUE_1117_0700 = 1794898800`, `FRI_1120_0800 = 1795161600`, `MON_1123_0700 = 1795417200`
 
   ```c
@@ -218,18 +218,18 @@ alarm_settings_t alarm_settings_default(void);
   void test_settings_default(void)      /* 5, 2000, 10 */
   ```
 
-- [ ] **Step 2: 실행해서 실패 확인**
+- [x] **Step 2: 실행해서 실패 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 링크 오류(`undefined reference to alarm_weekday`) 또는 FAIL
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
   요일은 `floor(local_s / 86400)`에서 `(days + 3) % 7`로 구한다(1970-01-01이 목요일). `alarm_next_ring`은 `after`가 속한 날의 hh:mm부터 최대 8일을 앞으로 보며 `days_mask`(0이면 아무 요일)와 `> after`를 만족하는 첫 시각을 반환한다.
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 모든 테스트 PASS, `alarm_time.c` 줄 커버리지 90% 이상
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add components/alarm_core test/host/test_alarm_time.c

@@ -2,6 +2,6 @@
 # 같은 소스를 PC 테스트(test/host)에서도 그대로 컴파일한다.
 # .c 파일을 추가하면 SRCS 목록에도 추가한다.
 idf_component_register(
-    SRCS
+    SRCS "alarm_time.c" "alarm_validate.c"
     INCLUDE_DIRS "include"
 )
