@@ -301,6 +301,32 @@ void test_input_in_idle_does_nothing(void)
     TEST_ASSERT_EQUAL_INT(ALARM_STATE_IDLE, alarm_engine_view(&eng).state);
 }
 
+/* 설정 변경은 다음 스누즈부터 적용된다 */
+void test_settings_change_applies_to_next_snooze(void)
+{
+    ring_at_0700(ALARM_DAYS_EVERYDAY);
+    alarm_settings_t s = alarm_settings_default();
+    s.snooze_min = 7;
+    alarm_engine_set_settings(&eng, &s);
+
+    alarm_engine_input(&eng, ALARM_INPUT_SHORT, MON_0700 + 10);
+    TEST_ASSERT_EQUAL_INT64(MON_0700 + 10 + 420, alarm_engine_view(&eng).snooze_until);
+}
+
+/* 이미 진행 중인 스누즈는 바뀌지 않는다 */
+void test_settings_change_keeps_current_snooze(void)
+{
+    ring_at_0700(ALARM_DAYS_EVERYDAY);
+    alarm_engine_input(&eng, ALARM_INPUT_SHORT, MON_0700 + 10);
+    alarm_settings_t s = alarm_settings_default();
+    s.snooze_min = 7;
+    alarm_engine_set_settings(&eng, &s);
+
+    alarm_view_t v = alarm_engine_view(&eng);
+    TEST_ASSERT_EQUAL_INT(ALARM_STATE_SNOOZED, v.state);
+    TEST_ASSERT_EQUAL_INT64(MON_0700 + 10 + 300, v.snooze_until);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -329,6 +355,8 @@ int main(void)
 
     RUN_TEST(test_simultaneous_start_prefers_ringing_alarm);
     RUN_TEST(test_input_in_idle_does_nothing);
+    RUN_TEST(test_settings_change_applies_to_next_snooze);
+    RUN_TEST(test_settings_change_keeps_current_snooze);
 
     return UNITY_END();
 }

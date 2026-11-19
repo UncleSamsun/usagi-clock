@@ -195,3 +195,18 @@ int alarm_days_in_month(int year, int month)
     }
     return days[month - 1];
 }
+
+int64_t alarm_next_any(const alarm_t *list, size_t n, int64_t after_local_s, size_t *idx)
+{
+    int64_t best = -1;
+    for (size_t i = 0; i < n; i++) {
+        int64_t t = alarm_next_ring(&list[i], after_local_s);
+        if (t >= 0 && (best < 0 || t < best)) {
+            best = t;
+            if (idx != NULL) {
+                *idx = i;
+            }
+        }
+    }
+    return best;
+}

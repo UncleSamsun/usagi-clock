@@ -43,6 +43,20 @@ typedef struct {
 void           button_fsm_init(button_fsm_t *b, uint32_t debounce_ms, uint32_t long_ms);
 button_event_t button_fsm_update(button_fsm_t *b, bool raw_pressed, uint32_t now_ms); /* 10ms마다 호출 */
 
+#ifdef ESP_PLATFORM
+#include "esp_err.h"
+
+typedef void (*button_cb_t)(button_event_t ev, void *ctx);
+
+/* GPIO를 입력+내부 풀업으로 두고 10ms 주기 작업에서 button_fsm_update를 부른다. LOW = 눌림.
+ * 인터럽트 대신 폴링: button_fsm이 10ms 샘플을 전제로 하고, 스위치 하나라 부담이 없다 */
+esp_err_t button_gpio_start(int gpio, uint32_t long_ms, button_cb_t cb, void *ctx);
+/* 길게 누르기 기준을 바꾼다(다음 누름부터) */
+void      button_gpio_set_long_ms(uint32_t long_ms);
+/* 지금 눌려 있는지(디바운스 전 원시 값). 부팅 때 설정 모드 판단용 */
+bool      button_gpio_raw_pressed(int gpio);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

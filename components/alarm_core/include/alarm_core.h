@@ -71,6 +71,8 @@ typedef struct {
 int64_t alarm_local_from_utc(int64_t utc_s);
 int     alarm_weekday(int64_t local_s);            /* 0=월 .. 6=일 */
 int64_t alarm_next_ring(const alarm_t *a, int64_t after_local_s); /* after보다 큰 가장 이른 울림 시각, 비활성이면 -1 */
+/* 목록에서 after보다 큰 가장 이른 울림 시각. 없으면 -1. idx가 NULL이 아니면 그 알람의 위치 */
+int64_t alarm_next_any(const alarm_t *list, size_t n, int64_t after_local_s, size_t *idx);
 bool    alarm_validate(const alarm_t *a);
 
 /* 달력 날짜·시각. epoch 초를 그대로 바꾼 값이라 UTC epoch을 넣으면 UTC, 로컬 epoch을 넣으면 로컬이다. */
@@ -151,6 +153,8 @@ void           alarm_engine_set_alarms(alarm_engine_t *e, const alarm_t *alarms,
 alarm_output_t alarm_engine_tick(alarm_engine_t *e, int64_t now_local_s);   /* 1초마다 호출 */
 alarm_output_t alarm_engine_input(alarm_engine_t *e, alarm_input_t in, int64_t now_local_s);
 alarm_view_t   alarm_engine_view(const alarm_engine_t *e);
+/* 설정만 바꾸고 회차 상태는 그대로 둔다. 진행 중 스누즈의 snooze_until은 바꾸지 않고 다음 판단부터 새 값을 쓴다 */
+void           alarm_engine_set_settings(alarm_engine_t *e, const alarm_settings_t *s);
 
 #ifdef __cplusplus
 }

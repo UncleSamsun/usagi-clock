@@ -199,6 +199,26 @@ void test_civil_round_trip_range(void)
     }
 }
 
+/* 여러 알람 중 가장 이른 다음 울림(화면의 NEXT 표시용) */
+void test_next_any_picks_earliest(void)
+{
+    alarm_t list[3] = { make_alarm(8, 0, ALARM_DAYS_EVERYDAY), make_alarm(7, 0, ALARM_DAYS_EVERYDAY),
+                        make_alarm(6, 0, ALARM_DAYS_EVERYDAY) };
+    list[2].enabled = false;   /* 꺼진 6시는 무시 */
+    size_t idx = 99;
+    TEST_ASSERT_EQUAL_INT64(MON_0700, alarm_next_any(list, 3, MON_0600, &idx));
+    TEST_ASSERT_EQUAL_size_t(1, idx);
+}
+
+void test_next_any_none(void)
+{
+    alarm_t a = make_alarm(7, 0, 0);
+    a.enabled = false;
+    size_t idx = 99;
+    TEST_ASSERT_EQUAL_INT64(-1, alarm_next_any(&a, 1, MON_0600, &idx));
+    TEST_ASSERT_EQUAL_INT64(-1, alarm_next_any(NULL, 0, MON_0600, NULL));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -228,6 +248,8 @@ int main(void)
     RUN_TEST(test_epoch_from_civil_leap_day);
     RUN_TEST(test_civil_epoch_zero);
     RUN_TEST(test_civil_round_trip_range);
+    RUN_TEST(test_next_any_picks_earliest);
+    RUN_TEST(test_next_any_none);
 
     return UNITY_END();
 }

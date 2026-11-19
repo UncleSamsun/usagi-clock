@@ -283,3 +283,8 @@ alarm_view_t alarm_engine_view(const alarm_engine_t *e)
 
     return v;
 }
+
+void alarm_engine_set_settings(alarm_engine_t *e, const alarm_settings_t *s)
+{
+    e->settings = *s;
+}
