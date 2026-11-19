@@ -2,7 +2,9 @@
 
 #include "alarm_core.h"
 #include "board_pins.h"
-#include "button_fsm.h"
+#include "dev_console_esp.h"
+#include "ds3231.h"
+#include "timekeeper.h"
 
 static const char *TAG = "usagi";
 
@@ -20,4 +22,13 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "boot (max alarms: %d)", ALARM_MAX);
     log_pins();
+
+    ds3231_t *rtc = NULL;
+    if (ds3231_init(PIN_I2C_SDA, PIN_I2C_SCL, &rtc) != ESP_OK) {
+        ESP_LOGE(TAG, "RTC init failed");
+        rtc = NULL;
+    }
+    timekeeper_init(rtc);
+
+    dev_console_start();
 }

@@ -72,6 +72,21 @@ int64_t alarm_local_from_utc(int64_t utc_s);
 int     alarm_weekday(int64_t local_s);            /* 0=월 .. 6=일 */
 int64_t alarm_next_ring(const alarm_t *a, int64_t after_local_s); /* after보다 큰 가장 이른 울림 시각, 비활성이면 -1 */
 bool    alarm_validate(const alarm_t *a);
+
+/* 달력 날짜·시각. epoch 초를 그대로 바꾼 값이라 UTC epoch을 넣으면 UTC, 로컬 epoch을 넣으면 로컬이다. */
+typedef struct {
+    int     year;     /* 예: 2026 */
+    uint8_t month;    /* 1..12 */
+    uint8_t day;      /* 1..31 */
+    uint8_t hour;     /* 0..23 */
+    uint8_t minute;
+    uint8_t second;
+    uint8_t weekday;  /* 0=월 .. 6=일 */
+} alarm_civil_t;
+
+void    alarm_civil_from_epoch(int64_t epoch_s, alarm_civil_t *out);
+int64_t alarm_epoch_from_civil(const alarm_civil_t *c);   /* weekday는 무시 */
+int     alarm_days_in_month(int year, int month);         /* 윤년 반영, month 범위 밖이면 0 */
 alarm_settings_t alarm_settings_default(void);
 
 /* ===== 알람 엔진(Task 3~4) =====

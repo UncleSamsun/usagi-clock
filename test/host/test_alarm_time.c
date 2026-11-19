@@ -156,6 +156,49 @@ static void test_smoke(void)
     TEST_ASSERT_EQUAL_INT(9 * 3600, ALARM_TZ_OFFSET_S);
 }
 
+/* ===== 날짜 ↔ epoch (계획 2 Task 2) ===== */
+
+void test_civil_from_epoch_monday_0700(void)
+{
+    alarm_civil_t c;
+    alarm_civil_from_epoch(MON_0700, &c);
+    TEST_ASSERT_EQUAL_INT(2026, c.year);
+    TEST_ASSERT_EQUAL_UINT8(11, c.month);
+    TEST_ASSERT_EQUAL_UINT8(16, c.day);
+    TEST_ASSERT_EQUAL_UINT8(7, c.hour);
+    TEST_ASSERT_EQUAL_UINT8(0, c.minute);
+    TEST_ASSERT_EQUAL_UINT8(0, c.second);
+    TEST_ASSERT_EQUAL_UINT8(0, c.weekday);   /* 월 */
+}
+
+void test_epoch_from_civil_leap_day(void)
+{
+    alarm_civil_t c = { .year = 2028, .month = 2, .day = 29, .hour = 23, .minute = 59, .second = 59 };
+    TEST_ASSERT_EQUAL_INT64(1835481599LL, alarm_epoch_from_civil(&c));
+}
+
+void test_civil_epoch_zero(void)
+{
+    alarm_civil_t c;
+    alarm_civil_from_epoch(0, &c);
+    TEST_ASSERT_EQUAL_INT(1970, c.year);
+    TEST_ASSERT_EQUAL_UINT8(1, c.month);
+    TEST_ASSERT_EQUAL_UINT8(1, c.day);
+    TEST_ASSERT_EQUAL_UINT8(3, c.weekday);   /* 목 */
+    TEST_ASSERT_EQUAL_INT64(0, alarm_epoch_from_civil(&c));
+}
+
+/* 2026-01-01부터 2099-12-31 23:59:59까지 86399초 간격으로 왕복이 같다 */
+void test_civil_round_trip_range(void)
+{
+    for (int64_t s = 1767225600LL; s <= 4102444799LL; s += 86399) {
+        alarm_civil_t c;
+        alarm_civil_from_epoch(s, &c);
+        TEST_ASSERT_EQUAL_INT64(s, alarm_epoch_from_civil(&c));
+        TEST_ASSERT_EQUAL_INT(alarm_weekday(s), c.weekday);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -179,6 +222,12 @@ int main(void)
     /* 값 검증과 기본 설정 */
     RUN_TEST(test_validate_rejects);
     RUN_TEST(test_settings_default);
+
+    /* 날짜 ↔ epoch */
+    RUN_TEST(test_civil_from_epoch_monday_0700);
+    RUN_TEST(test_epoch_from_civil_leap_day);
+    RUN_TEST(test_civil_epoch_zero);
+    RUN_TEST(test_civil_round_trip_range);
 
     return UNITY_END();
 }

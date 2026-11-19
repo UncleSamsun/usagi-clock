@@ -130,3 +130,68 @@ int64_t alarm_next_ring(const alarm_t *a, int64_t after_local_s)
     
     return -1;
 }
+
+/*
+ * 날짜 ↔ 날짜 수 변환: Howard Hinnant의 days_from_civil / civil_from_days 알고리즘.
+ * 3월을 한 해의 시작으로 보면 윤일(2월 29일)이 해의 맨 끝에 오므로 월별 일수 표 없이 계산된다.
+ * 400년(146097일) 주기 "era"로 나눠 음수 연도에서도 맞다.
+ * 참고: https://howardhinnant.github.io/date_algorithms.html
+ */
+static int64_t days_from_civil(int64_t y, int m, int d)
+{
+    y -= (m <= 2) ? 1 : 0;
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    int64_t yoe = y - era * 400;                                    /* 0..399 */
+    int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;   /* 0..365 */
+    int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;            /* 0..146096 */
+    return era * 146097 + doe - 719468;
+}
+
+static void civil_from_days(int64_t z, int *y, int *m, int *d)
+{
+    z += 719468;
+    int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+    int64_t doe = z - era * 146097;
+    int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    int64_t mp = (5 * doy + 2) / 153;
+    *d = (int)(doy - (153 * mp + 2) / 5 + 1);
+    *m = (int)(mp < 10 ? mp + 3 : mp - 9);
+    *y = (int)(yoe + era * 400 + (*m <= 2 ? 1 : 0));
+}
+
+void alarm_civil_from_epoch(int64_t epoch_s, alarm_civil_t *out)
+{
+    int64_t days = days_floor(epoch_s);
+    int64_t secs = epoch_s - days * SECONDS_PER_DAY;   /* 0..86399 */
+    int y, m, d;
+
+    civil_from_days(days, &y, &m, &d);
+    out->year = y;
+    out->month = (uint8_t)m;
+    out->day = (uint8_t)d;
+    out->hour = (uint8_t)(secs / 3600);
+    out->minute = (uint8_t)((secs / 60) % 60);
+    out->second = (uint8_t)(secs % 60);
+    out->weekday = (uint8_t)alarm_weekday(epoch_s);
+}
+
+int64_t alarm_epoch_from_civil(const alarm_civil_t *c)
+{
+    return days_from_civil(c->year, c->month, c->day) * SECONDS_PER_DAY
+           + c->hour * 3600LL + c->minute * 60LL + c->second;
+}
+
+int alarm_days_in_month(int year, int month)
+{
+    static const uint8_t days[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+    if (month < 1 || month > 12) {
+        return 0;
+    }
+    if (month == 2) {
+        bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+        return leap ? 29 : 28;
+    }
+    return days[month - 1];
+}
