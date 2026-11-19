@@ -3,7 +3,16 @@
 
 /*
  * 버튼 판별 상태 머신(디바운스, 짧게/길게 누르기).
- * 타입과 함수는 계획 1의 Task 5에서 채운다.
+ *
+ * GPIO를 직접 읽지 않는다. 호출하는 쪽(계획 2의 main)이 10ms마다 원시 입력과 현재 시각(ms)을 넣어 준다.
+ * alarm_core에 의존하지 않는다. main이 BUTTON_EV_SHORT/LONG을 ALARM_INPUT_SHORT/LONG으로 바꿔 넘긴다.
+ *
+ * 판별 규칙
+ *   - 원시 입력이 debounce_ms 동안 같은 값을 유지해야 상태(눌림/뗌)가 확정된다.
+ *   - 눌림이 확정된 뒤 long_ms가 지나는 순간, 손을 떼기 전에 LONG을 한 번만 낸다.
+ *   - LONG 없이 떼면 SHORT, LONG 뒤에 떼면 아무것도 내지 않는다.
+ *   - 처음부터 눌린 채 시작하면(버튼을 누른 채 부팅) 한 번 뗄 때까지 아무 이벤트도 내지 않는다.
+ *   - now_ms는 uint32_t가 넘쳐 0으로 돌아가도 동작한다(항상 차이로 계산).
  */
 
 #include <stdbool.h>
@@ -15,6 +24,24 @@ extern "C" {
 
 /* 기본 디바운스 시간(ms) */
 #define BUTTON_DEBOUNCE_MS 30
+
+typedef enum { BUTTON_EV_NONE = 0, BUTTON_EV_SHORT, BUTTON_EV_LONG } button_event_t;
+
+/* 내부 상태. 필드를 직접 건드리지 말고 함수로만 다룬다. */
+typedef struct {
+    uint32_t debounce_ms;
+    uint32_t long_ms;
+    bool     started;      /* 첫 update를 받았는지 */
+    bool     raw_last;     /* 직전 원시 입력 */
+    uint32_t raw_since;    /* raw_last 값이 시작된 시각 */
+    bool     pressed;      /* 디바운스로 확정된 상태 */
+    uint32_t pressed_at;   /* 눌림이 확정된 시각 */
+    bool     long_sent;    /* 이번 누름에서 LONG을 이미 냈는지 */
+    bool     armed;        /* 뗀 상태를 한 번 확인했는지(false면 이벤트를 내지 않는다) */
+} button_fsm_t;
+
+void           button_fsm_init(button_fsm_t *b, uint32_t debounce_ms, uint32_t long_ms);
+button_event_t button_fsm_update(button_fsm_t *b, bool raw_pressed, uint32_t now_ms); /* 10ms마다 호출 */
 
 #ifdef __cplusplus
 }

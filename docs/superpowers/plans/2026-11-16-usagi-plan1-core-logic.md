@@ -461,7 +461,7 @@ alarm_view_t   alarm_engine_view(const alarm_engine_t *e);
 
 ### Task 5: 버튼 판별 (디바운스, 짧게/길게)
 
-**작성:** 사용자(Claude 설명과 리뷰)
+**작성:** Claude(사용자 요청으로 Task 4부터 테스트와 로직 모두 Claude가 작성)
 
 **Files:**
 - Create: `components/button/include/button_fsm.h`, `components/button/button_fsm.c`
@@ -481,9 +481,9 @@ button_event_t button_fsm_update(button_fsm_t *b, bool raw_pressed, uint32_t now
 - 계획 2에서 `main`이 `BUTTON_EV_SHORT → ALARM_INPUT_SHORT`, `BUTTON_EV_LONG → ALARM_INPUT_LONG`으로 매핑한다. 그래서 `button`과 `alarm_core`는 서로 의존하지 않는다.
 - 값: `debounce_ms = 30`, `long_ms`는 `alarm_settings_t.long_press_ms`(기본 2000)
 
-**판별 규칙:** 원시 입력이 `debounce_ms` 동안 같은 값을 유지해야 상태가 바뀐다. 눌림이 확정된 뒤 `long_ms`에 도달하는 순간 **손을 떼기 전에** LONG을 한 번만 낸다. LONG 없이 떼면 SHORT를 낸다. LONG 뒤에 떼면 아무것도 내지 않는다. `now_ms`는 `uint32_t` 랩어라운드에도 동작해야 한다(차이 계산).
+**판별 규칙:** 원시 입력이 `debounce_ms` 동안 같은 값을 유지해야 상태가 바뀐다. 눌림이 확정된 뒤 `long_ms`에 도달하는 순간 **손을 떼기 전에** LONG을 한 번만 낸다. LONG 없이 떼면 SHORT를 낸다. LONG 뒤에 떼면 아무것도 내지 않는다. LONG 시각에 원시 입력이 이미 떨어져 있으면(뗌 확정 대기 중) LONG을 내지 않는다. `now_ms`는 `uint32_t` 랩어라운드에도 동작해야 한다(차이 계산).
 
-- [ ] **Step 1: 실패하는 테스트 작성** (헬퍼 `feed(b, pressed, from_ms, to_ms)`: 10ms 간격으로 update하고 마지막 NONE이 아닌 이벤트와 개수를 반환)
+- [x] **Step 1: 실패하는 테스트 작성** (헬퍼 `feed(b, pressed, from_ms, to_ms)`: 10ms 간격으로 update하고 마지막 NONE이 아닌 이벤트와 개수를 반환)
 
   ```c
   void test_short_press(void)              /* 0~200ms 누름, 210ms 뗌 → SHORT 1개 */
@@ -493,25 +493,26 @@ button_event_t button_fsm_update(button_fsm_t *b, bool raw_pressed, uint32_t now
   void test_release_after_long_is_silent(void) /* LONG 뒤 뗌 → 추가 이벤트 0 */
   void test_just_under_long_is_short(void) /* 1900ms 누름 뒤 뗌 → SHORT */
   void test_millis_wraparound(void)        /* now_ms를 0xFFFFFF00부터 시작해 2100ms 누름 → LONG 1개 */
+  void test_release_glitch_while_held_is_ignored(void) /* 누른 채 10ms 끊김 → 뗌으로 안 봄, 진짜 뗄 때 SHORT 1개 */
   void test_pressed_at_init_needs_release_first(void) /* 처음부터 눌린 채 시작(부팅 시 누름) → 뗄 때까지 이벤트 0 */
   ```
   마지막 테스트는 "버튼을 누른 채 부팅"(계획 4의 설정 모드 진입)이 알람 입력으로 새지 않게 막는다.
 
-- [ ] **Step 2: 실행해서 실패 확인**
+- [x] **Step 2: 실행해서 실패 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 링크 오류 또는 FAIL
 
-- [ ] **Step 3: 위 판별 규칙대로 구현**
+- [x] **Step 3: 위 판별 규칙대로 구현**
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 전부 PASS, `button` 줄 커버리지 90% 이상
 
-- [ ] **Step 5: 펌웨어 빌드에 두 컴포넌트가 들어가는지 확인**
+- [x] **Step 5: 펌웨어 빌드에 두 컴포넌트가 들어가는지 확인**
   Run: `idf.py build`
   Expected: `Project build complete`. `alarm_core`와 `button`이 컴파일 목록에 있음
 
-- [ ] **Step 6: Commit + push, CI 녹색 확인**
+- [x] **Step 6: Commit + push, CI 녹색 확인**
 
   ```bash
   git add components/button test/host/test_button_fsm.c
