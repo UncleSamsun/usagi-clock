@@ -30,7 +30,7 @@ ctest --test-dir "$BUILD" --output-on-failure
 
 echo "== 3/4 커버리지"
 mkdir -p "$BUILD/coverage"
-GCOVR_ARGS=(-r "$ROOT" --object-directory "$BUILD" --filter 'components/'
+GCOVR_ARGS=(-r "$ROOT" --object-directory "$BUILD" --filter 'components/' --exclude '.*/third_party/.*'
     --html-details "$BUILD/coverage/index.html" --print-summary)
 if [[ "${SKIP_COVERAGE_GATE:-0}" != "1" ]]; then
     GCOVR_ARGS+=(--fail-under-line 90)
@@ -45,13 +45,15 @@ fi
 echo "커버리지 리포트: build-host/coverage/index.html"
 
 echo "== 4/4 정적 분석"
-mapfile -t C_FILES < <(find components/alarm_core components/button -name '*.c' | sort)
+# 순수 C 파일만 검사한다(_esp.c와 서드파티 제외)
+mapfile -t C_FILES < <(find components -name '*.c' ! -name '*_esp.c' -not -path '*/third_party/*' | sort)
+mapfile -t INC_ARGS < <(for d in components/*/include; do printf -- '-I\n%s\n' "$d"; done)
 if [[ ${#C_FILES[@]} -eq 0 ]]; then
     echo "(검사할 .c 파일이 아직 없음: 건너뜀)"
 else
     cppcheck --enable=warning,style,performance --error-exitcode=1 --std=c11 \
         --inline-suppr --suppress=missingIncludeSystem --quiet \
-        -I components/alarm_core/include -I components/button/include \
+        "${INC_ARGS[@]}" \
         "${C_FILES[@]}"
 fi
 

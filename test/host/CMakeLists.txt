@@ -21,28 +21,19 @@ FetchContent_MakeAvailable(unity)
 
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 
-# 테스트 대상: 순수 C 컴포넌트의 .c 파일 전부
-file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
-    "${REPO_ROOT}/components/alarm_core/*.c"
-    "${REPO_ROOT}/components/button/*.c"
-)
-set(CORE_INCLUDES
-    "${REPO_ROOT}/components/alarm_core/include"
-    "${REPO_ROOT}/components/button/include"
-)
+# 테스트 대상: components/*/*.c 중 순수 C 파일 전부.
+# 파일 규칙: ESP-IDF 헤더를 쓰는 파일은 이름이 _esp.c로 끝나고, PC 빌드에서 뺀다.
+# 하위 폴더(third_party 등)는 글롭에 걸리지 않는다.
+file(GLOB CORE_SOURCES CONFIGURE_DEPENDS "${REPO_ROOT}/components/*/*.c")
+list(FILTER CORE_SOURCES EXCLUDE REGEX "_esp\\.c$")
+file(GLOB CORE_INCLUDES LIST_DIRECTORIES true "${REPO_ROOT}/components/*/include")
 
-if(CORE_SOURCES)
-    add_library(usagi_core STATIC ${CORE_SOURCES})
-    target_include_directories(usagi_core PUBLIC ${CORE_INCLUDES})
-    target_compile_options(usagi_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
-    if(USAGI_COVERAGE)
-        target_compile_options(usagi_core PRIVATE --coverage -O0)
-        target_link_options(usagi_core PUBLIC --coverage)
-    endif()
-else()
-    # 아직 .c 파일이 없을 때(Task 1): 헤더만 제공
-    add_library(usagi_core INTERFACE)
-    target_include_directories(usagi_core INTERFACE ${CORE_INCLUDES})
+add_library(usagi_core STATIC ${CORE_SOURCES})
+target_include_directories(usagi_core PUBLIC ${CORE_INCLUDES})
+target_compile_options(usagi_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
+if(USAGI_COVERAGE)
+    target_compile_options(usagi_core PRIVATE --coverage -O0)
+    target_link_options(usagi_core PUBLIC --coverage)
 endif()
 
 enable_testing()
