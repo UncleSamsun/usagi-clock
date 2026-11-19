@@ -301,7 +301,7 @@ alarm_view_t   alarm_engine_view(const alarm_engine_t *e);
 - PRE 상태에서는 틱마다 `PRE_CLIP`과 증가하는 `pre_clip_seq`를 낸다. `now >= ring_at`이면 RINGING으로 가고 `MAIN_START`를 낸다.
 - 틱이 끝나면 `last_tick = now`. 시간이 뒤로 가도(`now < last_tick`) 그대로 갱신한다. 이중 울림은 `handled_ring_at`이 막는다.
 
-- [ ] **Step 1: 실패하는 테스트 작성** (`test_alarm_engine_tick.c`)
+- [x] **Step 1: 실패하는 테스트 작성** (`test_alarm_engine_tick.c`)
   상수는 Task 2와 같고, 추가로 `SUN_1122_2357 = 1795391820`, `MON_1123_0002 = 1795392120`이 있다. 헬퍼 `alarm_t mk(uint8_t id, int h, int m, uint8_t days, uint8_t pre)`(볼륨 50, 활성)를 둔다.
 
   ```c
@@ -338,21 +338,25 @@ alarm_view_t   alarm_engine_view(const alarm_engine_t *e);
   /* days ALARM_DAY_MON, 00:02, pre 5. tick(SUN_1122_2357-1) → 0; tick(SUN_1122_2357) → PRE_CLIP;
      … tick(MON_1123_0002) → MAIN_START */
 
+  void test_alarm_list_change_keeps_handled_occurrence(void)
+  /* [id1 07:00 pre 5, id2 09:00] PRE 시작 → LONG → set_alarms([id2 09:30, id1]) (순서 바뀜);
+     tick(MON_0700-299) … tick(MON_0700) → actions 0, state IDLE (id로 handled_ring_at 물려받기) */
+
   void test_disabled_alarm_never_fires(void)
   ```
 
-- [ ] **Step 2: 실행해서 실패 확인**
+- [x] **Step 2: 실행해서 실패 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 링크 오류 또는 FAIL
 
-- [ ] **Step 3: 위 "틱 판단 규칙"대로 `alarm_engine_init/set_alarms/tick/view` 구현**
+- [x] **Step 3: 위 "틱 판단 규칙"대로 `alarm_engine_init/set_alarms/tick/view` 구현**
   `alarm_engine_t`는 알람 배열 사본(`alarm_t alarms[ALARM_MAX]`)과 알람별 `handled_ring_at`을 고정 크기로 가진다. `set_alarms`는 id가 같은 알람의 `handled_ring_at`을 보존한다.
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 전부 PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add components/alarm_core test/host/test_alarm_engine_tick.c
