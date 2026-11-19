@@ -15,6 +15,15 @@
 **Spec:** `docs/specs/2026-11-16-usagi-alarm-clock-design.md` (4장 SD·앰프, 5.2 알람 항목의 소리·볼륨, 5.3 "우! 나!" 재생 방식과 소리 실패 대비, 5.6 SD 폴더 구조, 6장 `audio`)
 **이전 계획:** `docs/superpowers/plans/2026-11-19-usagi-plan2-hardware-bringup.md` (이 계획은 계획 2 완료 후 실행한다)
 
+> **실행 메모 (2026-11-19, 부품 도착 전 코드 선작성)**
+> - 코드·PC 테스트·펌웨어 빌드까지 끝났다. 남은 것은 **[실기]** Step과 ffmpeg 테스트 파일 만들기다.
+> - 계획과 달라진 점
+>   - MP3 테스트를 둘로 나눴다. `test_mp3_stream.c`는 **손으로 만든 무음 MPEG 프레임**으로 프레임 찾기·끝·오류 판정·ID3·스테레오 섞기를 확인해서 ffmpeg 없이 항상 돈다. 소리(주파수) 확인은 `test_mp3_fixtures.c`로 옮겼고, `fixtures/make_fixtures.sh`로 MP3를 만들면 CMake가 자동으로 포함한다(ffmpeg 설치는 사용자가 비밀번호 입력).
+>   - minimp3는 동기를 잡을 때 뒤따르는 프레임 헤더를 여러 개 확인한다. 그래서 파일 끝에 쓰레기가 붙으면 그 바로 앞 몇 프레임(0.3초 이내)은 버려질 수 있다. 테스트는 이를 반영했다.
+>   - `clip_cache_add`는 `mp3_stream_t` 대신 `clip_source_t`(read·rate·failed 콜백)를 받는다. 가짜 소스로 PC 테스트를 하기 위해서다. 펌웨어에서는 mp3_stream을 감싸 넘긴다.
+>   - SD카드 함수는 `audio.h`가 아니라 `sdcard.h`(ESP 전용)에 있다. `AUDIO_NAME_MAX`는 `audio.h`에 있고 `audio_files.h`가 그것을 include한다.
+>   - `audio_player`에 `PLAY_PREVIEW`(계획 4의 미리 듣기, 10초, 반복 없음)를 미리 넣었다.
+
 ## 범위
 
 | 들어감 | 빠짐 |

@@ -15,6 +15,16 @@
 **Spec:** `docs/specs/2026-11-16-usagi-alarm-clock-design.md` (4장 하드웨어, 5.1 시간, 5.3 상태 머신, 5.4 화면, 6장 펌웨어 구조, 9.1 통신 기초 보강)
 **이전 계획:** `docs/superpowers/plans/2026-11-16-usagi-plan1-core-logic.md` (완료)
 
+> **실행 메모 (2026-11-19, 부품 도착 전 코드 선작성) [사용자 결정: "소프트웨어는 미리 다 짜두자"]**
+> - 코드·PC 테스트·펌웨어 빌드까지 끝났다. 남은 것은 **[실기]** Step(배선, 플래시, 소리·화면 확인, 로직 분석기, 밤샘 시험)과 Task 3(JTAG 실습)이다. 실기 Step은 체크하지 않은 채로 둔다.
+> - 계획과 달라진 점
+>   - 컴포넌트 `components/button` → **`components/snooze_button`**. 이름이 `button`이면 Espressif의 `button`(iot_button)과 겹쳐 `esp_lvgl_port`가 잘못 빌드된다. 헤더 이름(`button_fsm.h`)은 그대로다.
+>   - 비프 무늬를 순수 C `audio_beep.c`로 따로 빼고 PC 테스트(`test_audio_beep.c`)를 더했다.
+>   - `audio_op_t`·`audio_cmd_t`는 처음부터 `audio.h`의 순수 부분에 두고 `name` 필드와 `AUDIO_OP_PREVIEW`(계획 4)를 미리 넣었다.
+>   - `alarm_service`에 계획 4용 연결점(설정 변경, 저장 콜백, 밝기 함수, 화면 장식, 기본 볼륨)을 미리 두었다. 화면 상태(`ui_state_t`)에도 Wi-Fi 표시와 설정 모드 안내 필드가 있다.
+>   - 화면의 다음 알람 계산용으로 `alarm_next_any()`를 `alarm_core`에 더했다(PC 테스트 포함).
+>   - 펌웨어 파일 이름은 `build/usagi_clock.bin`이다.
+
 ## 범위
 
 | 들어감 | 빠짐(다음 계획) |
