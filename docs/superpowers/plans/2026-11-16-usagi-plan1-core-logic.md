@@ -367,7 +367,7 @@ alarm_view_t   alarm_engine_view(const alarm_engine_t *e);
 
 ### Task 4: 알람 엔진 — 버튼 입력과 회차 상태 머신
 
-**작성:** 사용자(Claude 설명과 리뷰)
+**작성:** Claude(사용자 요청으로 Task 4부터 테스트와 로직 모두 Claude가 작성)
 
 **Files:**
 - Modify: `components/alarm_core/alarm_engine.c`
@@ -393,7 +393,7 @@ alarm_view_t   alarm_engine_view(const alarm_engine_t *e);
 - **합치기:** 회차가 진행 중(IDLE 아님)일 때 다른 알람이 미리 알림이나 울림 조건을 만족하면 그 알람을 회차 구성원으로 추가만 한다. 상태와 소리는 바꾸지 않는다.
 - **목록 변경:** 진행 중에 `set_alarms`가 와도 회차 상태, 대표 `alarm_id`, 구성원을 유지한다. 삭제된 알람은 종료 때 `disable_ids`에 넣지 않는다.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
   ```c
   void test_short_in_pre_mutes_but_rings_on_time(void)
@@ -430,21 +430,27 @@ alarm_view_t   alarm_engine_view(const alarm_engine_t *e);
   void test_session_survives_alarm_list_change(void)            /* Review Focus 5 */
   /* id1 RINGING 중 set_alarms(빈 목록) → state RINGING, alarm_id 1 유지; LONG → IDLE, n_disable 0 */
 
+  void test_auto_stop_disables_once_alarm(void)
+  /* days 0 알람 울림 → tick(MON_0700+600) → AUDIO_STOP|DISABLE_ONCE, disable_ids[0] == id */
+
+  void test_simultaneous_start_prefers_ringing_alarm(void)
+  /* id1 07:05 pre 5, id2 07:00 pre 0. tick(MON_0700) → MAIN_START, alarm_id 2(울림 조건 알람이 대표); LONG 후 07:05까지 조용 */
+
   void test_input_in_idle_does_nothing(void)
   ```
 
-- [ ] **Step 2: 실행해서 실패 확인**
+- [x] **Step 2: 실행해서 실패 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 새 테스트 FAIL
 
-- [ ] **Step 3: 위 상태 전이 표대로 `alarm_engine_input`과 틱의 SNOOZED/자동 정지 처리 구현**
+- [x] **Step 3: 위 상태 전이 표대로 `alarm_engine_input`과 틱의 SNOOZED/자동 정지 처리 구현**
   회차 구성원은 `uint8_t members[ALARM_MAX]` 고정 배열로 둔다.
 
-- [ ] **Step 4: 통과 확인**
+- [x] **Step 4: 통과 확인**
   Run: `./tools/run_host_tests.sh`
   Expected: 전부 PASS, `alarm_core` 줄 커버리지 90% 이상, cppcheck 경고 0
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```bash
   git add components/alarm_core test/host/test_alarm_engine_session.c

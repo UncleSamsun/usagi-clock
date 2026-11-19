@@ -3,14 +3,20 @@
 #include <string.h> /* memset, memcpy */
 
 /*
- * 엔진을 처음 상태로 만든다.
+ * 알람 엔진: 1초 틱과 버튼 입력을 받아 "회차"의 상태를 바꾸고, 할 일(actions)을 돌려준다.
  *
- * 단계
- *   1) 구조체 전체를 0으로 지운다: memset(e, 0, sizeof(*e));
- *      → state는 IDLE(=0), n_alarms 0, has_last_tick false가 된다
- *   2) 설정을 복사한다: e->settings = *s;   (s는 포인터라서 *s가 구조체 자체)
- *   3) handled_ring_at은 0이 아니라 "없음"(-1)으로 채운다(ALARM_MAX개 모두)
+ * 회차 = 한 번 울리는 단위. 미리 알림(PRE) → 정각 울림(RINGING) ↔ 스누즈(SNOOZED) → 끝(IDLE).
+ * 회차가 진행 중일 때 다른 알람이 시작 조건을 만족하면 새 회차를 만들지 않고 구성원(members)으로 합류만 한다.
+ * 회차가 끝나면 구성원 중 "한 번만"(days_mask 0) 알람을 끄고 disable_ids로 알린다.
  */
+
+/* 알람 하나가 이번 틱에 회차를 시작(또는 합류)할 조건 */
+typedef enum {
+    MATCH_NONE = 0,
+    MATCH_RING,   /* 정각이 지났다 → 바로 울림 */
+    MATCH_PRE,    /* 미리 알림 구간 안이다 */
+} match_t;
+
 void alarm_engine_init(alarm_engine_t *e, const alarm_settings_t *s)
 {
     memset(e, 0, sizeof(*e));
@@ -23,40 +29,31 @@ void alarm_engine_init(alarm_engine_t *e, const alarm_settings_t *s)
 }
 
 /*
- * 알람 목록을 엔진에 넣는다(사본을 만든다). 웹에서 알람을 바꿀 때마다 불린다.
- *
- * 단계
- *   1) n이 ALARM_MAX보다 크면 ALARM_MAX로 자른다
- *   2) 새 목록의 각 알람 i에 대해 handled_ring_at을 정한다:
- *        기존 목록(e->alarms[0..e->n_alarms-1])에 id가 같은 알람이 있으면 그 handled_ring_at을 물려받고,
- *        없으면 -1.
- *      왜? 울리는 도중 다른 알람을 수정해서 목록이 다시 와도, 이미 울린 회차를 또 울리면 안 되니까.
- *      주의: 새 값을 계산하는 동안 기존 값을 덮어쓰면 안 된다 → 임시 배열 int64_t tmp[ALARM_MAX]에 먼저 모은다.
- *   3) memcpy(e->alarms, alarms, n * sizeof(alarm_t)); 로 목록을 복사하고
- *      tmp를 e->handled_ring_at에 복사, e->n_alarms = n
- *   회차 상태(state, alarm_id, ring_at)는 건드리지 않는다.
+ * 알람 목록을 엔진에 넣는다(사본). 웹에서 알람을 바꿀 때마다 불린다.
+ * id가 같은 알람은 handled_ring_at을 물려받아, 이미 시작한 회차가 다시 시작되지 않게 한다.
+ * 회차 상태(state, alarm_id, ring_at, members)는 건드리지 않는다.
  */
 void alarm_engine_set_alarms(alarm_engine_t *e, const alarm_t *alarms, size_t n)
 {
-    /* 1) 32개 넘으면 자르기 */
     if (n > ALARM_MAX) {
         n = ALARM_MAX;
     }
 
-    /* 2) 새 알람 i마다, 기존 목록에서 같은 id를 찾아 값을 물려받는다 */
+    /* 기존 값을 덮어쓰기 전에, 새 알람마다 물려받을 값을 tmp에 모은다 */
     int64_t tmp[ALARM_MAX];
     for (size_t i = 0; i < n; i++) {
-        tmp[i] = -1;                                  /* 못 찾으면 "없음" */
-        for (size_t j = 0; j < e->n_alarms; j++) {    /* 기존 목록 개수만큼 */
-            if (e->alarms[j].id == alarms[i].id) {    /* 기존 j번째 id == 새 i번째 id */
-                tmp[i] = e->handled_ring_at[j];       /* 기존 j번째의 handled 값 */
+        tmp[i] = -1;
+        for (size_t j = 0; j < e->n_alarms; j++) {
+            if (e->alarms[j].id == alarms[i].id) {
+                tmp[i] = e->handled_ring_at[j];
                 break;
             }
         }
     }
 
-    /* 3) 다 찾았으니 이제 덮어써도 된다 */
-    memcpy(e->alarms, alarms, n * sizeof(alarm_t));
+    if (n > 0) {   /* 빈 목록이면 alarms가 NULL일 수 있다. memcpy에 NULL을 주면 안 된다 */
+        memcpy(e->alarms, alarms, n * sizeof(alarm_t));
+    }
     for (size_t i = 0; i < n; i++) {
         e->handled_ring_at[i] = tmp[i];
     }
@@ -64,37 +61,86 @@ void alarm_engine_set_alarms(alarm_engine_t *e, const alarm_t *alarms, size_t n)
 }
 
 /*
- * 1초마다 불린다. 이번 틱에 할 일을 돌려준다.
- *
- * 단계
- *   0) alarm_output_t out = {0}; 으로 시작한다(actions 0 = 할 일 없음)
- *   1) 첫 틱이면(has_last_tick가 false) last_tick = now - 1, has_last_tick = true
- *      → "직전 1초 동안"만 본다. 전원이 꺼져 있던 사이의 알람을 뒤늦게 울리지 않는다.
- *
- *   2) 진행 중인 회차 처리
- *      - PRE:       now >= ring_at 이면 RINGING으로 가고 actions |= MAIN_START
- *                   아니면 actions |= PRE_CLIP, out.pre_clip_seq = e->pre_clip_seq, 그리고 e->pre_clip_seq++
- *      - PRE_MUTED: now >= ring_at 이면 RINGING + MAIN_START   (PRE_MUTED로 가는 건 Task 4)
- *      - RINGING, SNOOZED: Task 4에서 채운다
- *
- *   3) IDLE이면 새로 시작할 알람을 찾는다. 알람마다(i = 0..n_alarms-1):
- *        a) 꺼져 있으면 건너뛴다
- *        b) T = alarm_next_ring(a, e->last_tick)      ← now가 아니라 last_tick 기준!
- *           T < 0 이거나 T == handled_ring_at[i] 이면 건너뛴다(이미 시작한 회차)
- *        c) 울림: T <= now 이고 0 < now - last_tick <= ALARM_JUMP_LIMIT_S
- *             → handled_ring_at[i] = T, state RINGING, alarm_id, ring_at = T, actions |= MAIN_START, 반복 종료(break)
- *        d) 미리 알림: T > now 이고 pre_minutes > 0 이고 T - pre_minutes * 60 <= now
- *             → handled_ring_at[i] = T, state PRE, alarm_id, ring_at = T,
- *               첫 클립을 바로 낸다: actions |= PRE_CLIP, out.pre_clip_seq = 0, e->pre_clip_seq = 1, break
- *
- *   4) e->last_tick = now   (시간이 뒤로 가도 그대로 갱신한다)
- *   5) out.alarm_id = e->alarm_id; return out;
- *
- * 왜 last_tick 기준인가?
- *   시간이 06:59:30 → 07:01:00으로 건너뛰면 now(07:01) 기준으로는 07:00이 이미 지나서 내일 07:00이 나온다.
- *   last_tick(06:59:30) 기준이면 07:00이 나오고, T <= now 이므로 "건너뛴 사이에 정각이 있었다"를 알 수 있다.
- *
- * 비트 켜기: out.actions |= ALARM_ACT_MAIN_START;   (|= 는 다른 비트를 지우지 않고 그 비트만 켠다)
+ * 알람 i가 이번 틱에 시작 조건을 만족하는지 본다. 만족하면 그 회차의 정각을 *ring_at에 쓴다.
+ *   - 다음 정각 T는 now가 아니라 last_tick 기준으로 구한다. 시간이 조금 건너뛰어도 그 사이의 정각을 놓치지 않는다.
+ *   - 울림: T <= now 이고 건너뛴 시간 gap이 0초 초과 ALARM_JUMP_LIMIT_S 이하
+ *   - 미리 알림: T > now 이고 T - pre_minutes*60 <= now (구간 안이면 언제든 시작)
+ */
+static match_t match_alarm(const alarm_engine_t *e, size_t i, int64_t now, int64_t gap, int64_t *ring_at)
+{
+    const alarm_t *a = &e->alarms[i];
+    if (!a->enabled) {
+        return MATCH_NONE;
+    }
+
+    int64_t T = alarm_next_ring(a, e->last_tick);
+    if (T < 0 || T == e->handled_ring_at[i]) {   /* 없거나 이미 시작한 회차 */
+        return MATCH_NONE;
+    }
+
+    *ring_at = T;
+    if (T <= now && gap > 0 && gap <= ALARM_JUMP_LIMIT_S) {
+        return MATCH_RING;
+    }
+    if (T > now && a->pre_minutes > 0 && (T - a->pre_minutes * 60) <= now) {
+        return MATCH_PRE;
+    }
+    return MATCH_NONE;
+}
+
+static void add_member(alarm_engine_t *e, uint8_t id)
+{
+    for (size_t k = 0; k < e->n_members; k++) {
+        if (e->members[k] == id) {
+            return;
+        }
+    }
+    if (e->n_members < ALARM_MAX) {
+        e->members[e->n_members++] = id;
+    }
+}
+
+/* 본 알람 시작. 자동 정지 시간은 여기서부터 다시 센다 */
+static void start_ringing(alarm_engine_t *e, int64_t now, alarm_output_t *out)
+{
+    e->state = ALARM_STATE_RINGING;
+    e->ring_started_at = now;
+    out->actions |= ALARM_ACT_MAIN_START;
+}
+
+/*
+ * 회차를 끝낸다. 구성원 중 지금 목록에 남아 있는 "한 번만" 알람을 끄고 disable_ids에 담는다.
+ * 목록에서 삭제된 알람은 찾을 수 없으므로 담기지 않는다.
+ */
+static void end_session(alarm_engine_t *e, alarm_output_t *out)
+{
+    for (size_t k = 0; k < e->n_members; k++) {
+        for (size_t i = 0; i < e->n_alarms; i++) {
+            alarm_t *a = &e->alarms[i];
+            if (a->id == e->members[k]) {
+                if (a->days_mask == 0 && a->enabled) {
+                    a->enabled = false;
+                    out->disable_ids[out->n_disable++] = a->id;
+                }
+                break;
+            }
+        }
+    }
+    if (out->n_disable > 0) {
+        out->actions |= ALARM_ACT_DISABLE_ONCE;
+    }
+
+    out->actions |= ALARM_ACT_AUDIO_STOP;
+    e->state = ALARM_STATE_IDLE;
+    e->n_members = 0;
+}
+
+/*
+ * 1초마다 불린다.
+ *   1) 첫 틱이면 last_tick = now - 1 (전원이 꺼져 있던 사이의 알람은 뒤늦게 울리지 않는다)
+ *   2) 진행 중인 회차의 시간 조건 처리(정각 도달, 자동 정지, 스누즈 끝)
+ *   3) 알람마다 시작 조건 확인 → IDLE이면 새 회차 시작, 진행 중이면 합류
+ *   4) last_tick = now (시간이 뒤로 가도 갱신. 이중 울림은 handled_ring_at이 막는다)
  */
 alarm_output_t alarm_engine_tick(alarm_engine_t *e, int64_t now_local_s)
 {
@@ -106,96 +152,126 @@ alarm_output_t alarm_engine_tick(alarm_engine_t *e, int64_t now_local_s)
         e->last_tick = now - 1;
         e->has_last_tick = true;
     }
+    int64_t gap = now - e->last_tick;   /* 직전 틱 이후 흐른 시간(초) */
 
     /* 2) 진행 중인 회차 */
-    if (e->state == ALARM_STATE_PRE) {
+    switch (e->state) {
+    case ALARM_STATE_PRE:
         if (now >= e->ring_at) {
-            e->state = ALARM_STATE_RINGING;
-            out.actions |= ALARM_ACT_MAIN_START;
+            start_ringing(e, now, &out);
         } else {
             out.actions |= ALARM_ACT_PRE_CLIP;
             out.pre_clip_seq = e->pre_clip_seq;
             e->pre_clip_seq++;
         }
-    } else if (e->state == ALARM_STATE_PRE_MUTED) {
+        break;
+    case ALARM_STATE_PRE_MUTED:
         if (now >= e->ring_at) {
-            e->state = ALARM_STATE_RINGING;
-            out.actions |= ALARM_ACT_MAIN_START;
+            start_ringing(e, now, &out);
         }
+        break;
+    case ALARM_STATE_RINGING:
+        if (now - e->ring_started_at >= (int64_t)e->settings.auto_stop_min * 60) {
+            end_session(e, &out);
+        }
+        break;
+    case ALARM_STATE_SNOOZED:
+        if (now >= e->snooze_until) {
+            start_ringing(e, now, &out);
+        }
+        break;
+    case ALARM_STATE_IDLE:
+        break;
     }
 
-    /* 3) IDLE이면 새 알람 찾기 */
-    int64_t gap = now - e->last_tick;   /* 직전 틱 이후 흐른 시간(초). 반복 중에는 바뀌지 않는다 */
+    /* 3) 시작 조건 확인 */
+    match_t kind[ALARM_MAX];
+    int64_t ring_at[ALARM_MAX];
+    for (size_t i = 0; i < e->n_alarms; i++) {
+        ring_at[i] = -1;
+        kind[i] = match_alarm(e, i, now, gap, &ring_at[i]);
+    }
 
     if (e->state == ALARM_STATE_IDLE) {
-        for (size_t i = 0; i < e->n_alarms; i++) {
-            const alarm_t *a = &e->alarms[i];
-
-            /* a) 꺼진 알람 */
-            if (!a->enabled) {
-                continue;
+        /* 대표 고르기: 울림 조건 알람이 있으면 그것을, 없으면 미리 알림 조건 알람을 쓴다.
+         * 정각이 지난 알람이 다른 알람의 미리 알림 때문에 늦게 울리지 않게 하려는 것이다. */
+        size_t starter = e->n_alarms;   /* 못 찾음 */
+        for (size_t i = 0; i < e->n_alarms && starter == e->n_alarms; i++) {
+            if (kind[i] == MATCH_RING) {
+                starter = i;
             }
-
-            /* b) 다음 정각(last_tick 기준). 없거나 이미 시작한 회차면 건너뜀 */
-            int64_t T = alarm_next_ring(a, e->last_tick);
-            if (T < 0 || T == e->handled_ring_at[i]) {
-                continue;
+        }
+        for (size_t i = 0; i < e->n_alarms && starter == e->n_alarms; i++) {
+            if (kind[i] == MATCH_PRE) {
+                starter = i;
             }
+        }
 
-            /* c) 울림: 정각이 지났고, 건너뛴 시간이 허용 범위 안 */
-            if (T <= now && gap > 0 && gap <= ALARM_JUMP_LIMIT_S) {
-                e->handled_ring_at[i] = T;
-                e->state = ALARM_STATE_RINGING;
-                e->alarm_id = a->id;
-                e->ring_at = T;
-                out.actions |= ALARM_ACT_MAIN_START;
-                break;
-            }
-
-            /* d) 미리 알림: 정각 전이고, 미리 알림 구간 안 */
-            if (T > now && a->pre_minutes > 0 && (T - a->pre_minutes * 60) <= now) {
-                e->handled_ring_at[i] = T;
+        if (starter < e->n_alarms) {
+            e->n_members = 0;
+            e->alarm_id = e->alarms[starter].id;
+            e->ring_at = ring_at[starter];
+            if (kind[starter] == MATCH_RING) {
+                start_ringing(e, now, &out);
+            } else {
                 e->state = ALARM_STATE_PRE;
-                e->alarm_id = a->id;
-                e->ring_at = T;
                 out.actions |= ALARM_ACT_PRE_CLIP;
                 out.pre_clip_seq = 0;
                 e->pre_clip_seq = 1;
-                break;
             }
         }
     }
 
-    /* 4) 5) */
+    /* 회차가 진행 중이면(방금 시작한 것 포함) 조건을 만족한 알람을 모두 구성원으로 넣는다.
+     * 상태와 소리는 바꾸지 않는다. handled_ring_at을 기록해 같은 회차로 다시 잡히지 않게 한다. */
+    if (e->state != ALARM_STATE_IDLE) {
+        for (size_t i = 0; i < e->n_alarms; i++) {
+            if (kind[i] != MATCH_NONE) {
+                e->handled_ring_at[i] = ring_at[i];
+                add_member(e, e->alarms[i].id);
+            }
+        }
+    }
+
+    /* 4) */
     e->last_tick = now;
     out.alarm_id = e->alarm_id;
     return out;
 }
 
 /*
- * 버튼 입력을 처리한다. Task 3에서는 LONG만 최소로 만든다(나머지는 Task 4).
- *
- * 단계 (Task 3 범위)
- *   1) IDLE이 아니고 in == ALARM_INPUT_LONG 이면
- *        state = IDLE, actions = AUDIO_STOP | CONFIRM_BEEP
- *   2) 그 밖에는 아무것도 하지 않는다(actions 0)
+ * 버튼 입력.
+ *   SHORT: PRE → PRE_MUTED(미리 알림만 멈춤), RINGING → SNOOZED(snooze_min분 뒤 다시)
+ *   LONG:  진행 중인 회차를 끝낸다 + 확인음
+ *   IDLE에서는 아무것도 하지 않는다.
  */
 alarm_output_t alarm_engine_input(alarm_engine_t *e, alarm_input_t in, int64_t now_local_s)
 {
     alarm_output_t out = {0};
-    (void)now_local_s;
 
-    if (e->state != ALARM_STATE_IDLE && in == ALARM_INPUT_LONG) {
-        e->state = ALARM_STATE_IDLE;
-        out.actions = ALARM_ACT_AUDIO_STOP | ALARM_ACT_CONFIRM_BEEP;
+    if (e->state == ALARM_STATE_IDLE) {
+        return out;
     }
 
+    if (in == ALARM_INPUT_LONG) {
+        end_session(e, &out);
+        out.actions |= ALARM_ACT_CONFIRM_BEEP;
+    } else if (in == ALARM_INPUT_SHORT) {
+        if (e->state == ALARM_STATE_PRE) {
+            e->state = ALARM_STATE_PRE_MUTED;
+            out.actions |= ALARM_ACT_AUDIO_STOP;
+        } else if (e->state == ALARM_STATE_RINGING) {
+            e->state = ALARM_STATE_SNOOZED;
+            e->snooze_until = now_local_s + (int64_t)e->settings.snooze_min * 60;
+            out.actions |= ALARM_ACT_AUDIO_STOP;
+        }
+    }
+
+    out.alarm_id = e->alarm_id;
     return out;
 }
 
-/*
- * 화면 표시용으로 현재 상태를 복사해 돌려준다.
- */
+/* 화면 표시용으로 현재 상태를 복사해 돌려준다 */
 alarm_view_t alarm_engine_view(const alarm_engine_t *e)
 {
     alarm_view_t v = {0};

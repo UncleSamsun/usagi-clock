@@ -87,7 +87,8 @@ typedef enum {
     ALARM_STATE_SNOOZED,
 } alarm_state_t;
 
-/* 출력 동작 비트: 한 번에 여러 개가 켜질 수 있다 */
+/* 출력 동작 비트: 한 번에 여러 개가 켜질 수 있다.
+ * AUDIO_STOP과 MAIN_START/PRE_CLIP이 함께 켜지면(회차가 끝나는 틱에 다른 알람이 시작) 멈춤을 먼저 처리한다. */
 #define ALARM_ACT_PRE_CLIP     (1u << 0)  /* 이번 틱에 미리 알림 클립 1개 재생 (pre_clip_seq 번째) */
 #define ALARM_ACT_MAIN_START   (1u << 1)  /* 본 알람 노래 재생 시작(반복) */
 #define ALARM_ACT_AUDIO_STOP   (1u << 2)
@@ -125,6 +126,9 @@ typedef struct {
     int64_t  ring_at;                    /* 현재 회차의 정각 */
     int64_t  snooze_until;
     uint16_t pre_clip_seq;               /* 다음에 낼 클립 번호 */
+    int64_t  ring_started_at;            /* 마지막 MAIN_START 시각(자동 정지 기준) */
+    uint8_t  members[ALARM_MAX];         /* 현재 회차에 속한 알람 id(대표 포함, 합류 순서) */
+    size_t   n_members;
 } alarm_engine_t;
 
 void           alarm_engine_init(alarm_engine_t *e, const alarm_settings_t *s);
