@@ -1,0 +1,5 @@
+## 화면: ILI9341 패널 드라이버와 LVGL 포팅 계층. 처음 빌드 때 dependencies.lock으로 버전이 고정된다.
+dependencies:
+  espressif/esp_lcd_ili9341: "^2.0.0"
+  espressif/esp_lvgl_port: "^2.4.0"
+  lvgl/lvgl: "^9.2.0"

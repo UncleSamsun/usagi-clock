@@ -1,0 +1,4 @@
+## JSON(cJSON)과 웹 페이지 파일시스템(LittleFS)
+dependencies:
+  espressif/cjson: "^1.7.18"
+  joltwallet/littlefs: "^1.16.0"

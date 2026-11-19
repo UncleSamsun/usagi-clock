@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="우사기 시계">
+<meta name="theme-color" content="#f6efe4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1a17" media="(prefers-color-scheme: dark)">
+<title>우사기 시계</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" href="/icon.svg">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <h1>우사기 시계</h1>
+  <span id="clock" class="clock"></span>
+</header>
+
+<main>
+  <!-- 알람 -->
+  <section id="tab-alarms" class="tab active">
+    <ul id="alarm-list" class="list"></ul>
+    <p id="alarm-empty" class="empty" hidden>알람이 없어요. 아래 + 버튼으로 추가하세요.</p>
+    <button id="add-alarm" class="fab" aria-label="알람 추가">＋</button>
+  </section>
+
+  <!-- 소리 -->
+  <section id="tab-sounds" class="tab">
+    <h2>노래</h2>
+    <ul id="song-list" class="list"></ul>
+    <label class="btn wide">노래 올리기(MP3, 20MB까지)
+      <input id="song-file" type="file" accept=".mp3,audio/mpeg" hidden>
+    </label>
+    <h2>미리 알림 클립 세트</h2>
+    <p class="hint">세트 안의 클립을 이름 순서대로 1초마다 하나씩 틀어요. "우"와 "나"를 따로 올리면 우 → 나 → 우 → 나가 돼요.</p>
+    <div id="clipsets"></div>
+    <div class="row">
+      <input id="new-set" type="text" placeholder="새 세트 이름(영문 소문자)" maxlength="31">
+      <label class="btn">클립 올리기
+        <input id="clip-file" type="file" accept=".mp3,audio/mpeg" hidden>
+      </label>
+    </div>
+    <div id="progress" class="progress" hidden><div></div></div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="tab-settings" class="tab">
+    <form id="settings-form" class="form">
+      <label>새 알람 기본 볼륨 <output></output><input name="default_volume" type="range" min="0" max="100"></label>
+      <label>스누즈(분)<input name="snooze_min" type="number" min="1" max="30" inputmode="numeric"></label>
+      <label>길게 누르기(초)<input name="long_press_s" type="number" min="1" max="5" step="0.5" inputmode="decimal"></label>
+      <label>자동 정지(분)<input name="auto_stop_min" type="number" min="1" max="60" inputmode="numeric"></label>
+      <label>낮 밝기 <output></output><input name="day_brightness" type="range" min="1" max="100"></label>
+      <label>밤 밝기 <output></output><input name="night_brightness" type="range" min="1" max="100"></label>
+      <div class="row">
+        <label>야간 시작<input name="night_start" type="time"></label>
+        <label>야간 끝<input name="night_end" type="time"></label>
+      </div>
+      <label>기기 이름(주소: 이름.local)<input name="device_name" type="text" pattern="[a-z0-9-]{1,24}" maxlength="24" autocapitalize="off" autocorrect="off"></label>
+      <button class="btn primary wide" type="submit">설정 저장</button>
+    </form>
+
+    <h2>시간</h2>
+    <button id="sync-time" class="btn wide">휴대폰 시간으로 맞추기</button>
+
+    <h2>Wi-Fi</h2>
+    <form id="wifi-form" class="form">
+      <label>이름(SSID)<input name="ssid" type="text" maxlength="32" autocapitalize="off" autocorrect="off" required></label>
+      <label>비밀번호<input name="pass" type="password" maxlength="63" autocomplete="off"></label>
+      <button class="btn wide" type="submit">Wi-Fi 바꾸기</button>
+    </form>
+  </section>
+
+  <!-- 상태 -->
+  <section id="tab-status" class="tab">
+    <dl id="status" class="status"></dl>
+    <h2>펌웨어 업데이트</h2>
+    <p class="hint">build/usagi_clock.bin 파일을 고르세요. 알람이 울리는 중에는 할 수 없어요. 문제가 생기면 이전 버전으로 자동으로 돌아가요.</p>
+    <label class="btn wide">펌웨어 파일 고르기
+      <input id="fw-file" type="file" accept=".bin" hidden>
+    </label>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="alarms" class="active">알람</button>
+  <button data-tab="sounds">소리</button>
+  <button data-tab="settings">설정</button>
+  <button data-tab="status">상태</button>
+</nav>
+
+<!-- 알람 편집 -->
+<dialog id="editor">
+  <form id="alarm-form" method="dialog" class="form">
+    <h2 id="editor-title">알람</h2>
+    <label>시각<input name="time" type="time" required></label>
+    <div class="days" role="group" aria-label="반복 요일">
+      <button type="button" data-bit="0">월</button><button type="button" data-bit="1">화</button>
+      <button type="button" data-bit="2">수</button><button type="button" data-bit="3">목</button>
+      <button type="button" data-bit="4">금</button><button type="button" data-bit="5">토</button>
+      <button type="button" data-bit="6">일</button>
+    </div>
+    <div class="row">
+      <button type="button" class="btn" data-preset="127">매일</button>
+      <button type="button" class="btn" data-preset="31">평일</button>
+      <button type="button" class="btn" data-preset="0">한 번만</button>
+    </div>
+    <label>이름<input name="label" type="text" maxlength="23"></label>
+    <label>미리 알림(분, 0이면 없음)<input name="pre_minutes" type="number" min="0" max="60" inputmode="numeric"></label>
+    <label>미리 알림 볼륨 <output></output><input name="pre_volume" type="range" min="0" max="100"></label>
+    <label>본 알람 볼륨 <output></output><input name="main_volume" type="range" min="0" max="100"></label>
+    <label>노래<select name="song"></select></label>
+    <label>클립 세트<select name="clipset"></select></label>
+    <div class="row">
+      <button type="button" id="delete-alarm" class="btn danger">삭제</button>
+      <button type="button" id="cancel-alarm" class="btn">취소</button>
+      <button type="submit" class="btn primary">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

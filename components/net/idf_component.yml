@@ -1,0 +1,3 @@
+## mDNS: http://<기기이름>.local
+dependencies:
+  espressif/mdns: "^1.4.0"
